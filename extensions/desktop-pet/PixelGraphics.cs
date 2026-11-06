@@ -72,7 +72,18 @@ namespace CapturaDesktopPet {
   }
  }
  public sealed class OrbitArc : FrameworkElement {
-  public static Point CenterAt(double angle){double r=angle*Math.PI/180;return new Point(180+132*Math.Cos(r),180+110*Math.Sin(r));}
-  protected override void OnRender(DrawingContext dc){Brush brush=new SolidColorBrush(Color.FromArgb(140,46,157,151));for(double angle=-155;angle<=-25;angle+=3){Point p=CenterAt(angle);dc.DrawRectangle(brush,null,new Rect(Math.Round(p.X/2)*2-2,Math.Round(p.Y/2)*2-2,4,4));}}
+  public const double Origin=416,SurfaceSize=832;
+  double rotation,corner,scale=1;Vector offset;
+  static readonly Brush arcBrush=new SolidColorBrush(Color.FromArgb(140,46,157,151));
+  public void SetLayout(double angle,double cornerAmount,double radiusScale,Vector translation){if(rotation==angle && corner==cornerAmount && scale==radiusScale && offset==translation)return;rotation=angle;corner=cornerAmount;scale=radiusScale;offset=translation;InvalidateVisual();}
+  public static Point CenterAt(double angle){return CenterAt(angle,0);}
+  public static Point CenterAt(double angle,double rotation){return CenterAt(angle,rotation,0);}
+  public static Point CenterAt(double angle,double rotation,double cornerAmount){return CenterAt(angle,rotation,cornerAmount,1);}
+  public static Point CenterAt(double angle,double rotation,double cornerAmount,double scale){
+   double r=(-90+(angle+90)*(1-cornerAmount+cornerAmount*90/130))*Math.PI/180,t=rotation*Math.PI/180;
+   double x=(132+100*cornerAmount)*Math.Cos(r),y=(110+122*cornerAmount)*Math.Sin(r);
+   return new Point(Origin+scale*(x*Math.Cos(t)-y*Math.Sin(t)),Origin+scale*(x*Math.Sin(t)+y*Math.Cos(t)));
+  }
+  protected override void OnRender(DrawingContext dc){for(double angle=-155;angle<=-25;angle+=3){Point p=CenterAt(angle,rotation,corner,scale)+offset;dc.DrawRectangle(arcBrush,null,new Rect(Math.Round(p.X/2)*2-2,Math.Round(p.Y/2)*2-2,4,4));}}
  }
 }

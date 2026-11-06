@@ -7,7 +7,7 @@
 ./build.ps1
 
 # 先把已发布的完整安装包解压到一个空目录，不写系统卸载项、快捷方式或个人配置
-./Captura-WXC-2026.11.06-Setup-x64.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /EXTRACTONLY=1 /DIR="C:\Build\FullRuntime" /NOICONS /TASKS=""
+./Captura-WXC-2026.11.06.1-Setup-x64.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /EXTRACTONLY=1 /DIR="C:\Build\FullRuntime" /NOICONS /TASKS=""
 
 # 使用完整运行文件重建安装包（提供微软签名的 VC++ x64 运行库安装文件）
 ./build.ps1 -RuntimeDirectory 'C:\Build\FullRuntime' -Setup -InnoCompiler 'C:\Program Files\Inno Setup 7\ISCC.exe' -VCRedist 'C:\Build\VC_redist.x64.exe'

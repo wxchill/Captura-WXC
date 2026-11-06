@@ -1,15 +1,15 @@
-#define AppVersion "8.0.2026.1106"
+#define AppVersion "8.0.2026.1107"
 #ifndef PayloadDir
  #define PayloadDir "payload"
 #endif
 #ifndef ReleaseDir
- #define ReleaseDir "..\..\outputs\Captura-WXC发布包"
+ #define ReleaseDir "..\..\outputs\Captura-WXC发布包\2026.11.06.1"
 #endif
 [Setup]
 AppId={{B52172D4-2D2C-4BFA-B086-E7CFC42C7EC7}
 AppName=Captura WXC
 AppVersion={#AppVersion}
-AppVerName=Captura WXC 2026.11.06
+AppVerName=Captura WXC 2026.11.06.1
 AppPublisher=Captura WXC contributors
 AppPublisherURL=https://github.com/wxchill/Captura-WXC
 AppSupportURL=https://github.com/wxchill/Captura-WXC/issues
@@ -21,7 +21,7 @@ MinVersion=10.0.19041
 DisableProgramGroupPage=yes
 DisableDirPage=no
 OutputDir={#ReleaseDir}
-OutputBaseFilename=Captura-WXC-2026.11.06-Setup-x64
+OutputBaseFilename=Captura-WXC-2026.11.06.1-Setup-x64
 Compression=lzma2/normal
 SolidCompression=yes
 LZMAUseSeparateProcess=yes
