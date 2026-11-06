@@ -1,0 +1,12 @@
+packaging/payload/
+packaging/tools/
+packaging/VC_redist.x64.exe
+release/
+artifacts/
+*.user
+*.log
+*.pyc
+__pycache__/
+bin/
+obj/
+.vs/
