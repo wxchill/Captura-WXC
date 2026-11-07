@@ -7,13 +7,15 @@
 ./build.ps1
 
 # 先把已发布的完整安装包解压到一个空目录，不写系统卸载项、快捷方式或个人配置
-./Captura-WXC-2026.11.07-Setup-x64.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /EXTRACTONLY=1 /DIR="C:\Build\FullRuntime" /NOICONS /TASKS=""
+./Captura-WXC-2026.11.07.1-Setup-x64.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /EXTRACTONLY=1 /DIR="C:\Build\FullRuntime" /NOICONS /TASKS=""
 
 # 使用完整运行文件重建安装包（提供微软签名的 VC++ x64 运行库安装文件）
 ./build.ps1 -RuntimeDirectory 'C:\Build\FullRuntime' -Setup -InnoCompiler 'C:\Program Files\Inno Setup 7\ISCC.exe' -VCRedist 'C:\Build\VC_redist.x64.exe'
 ```
 
 小快照不含 FFmpeg 和模型，不可直接作为完整安装包分发。完整运行文件应来自本仓库对应 Release。原始开发机安装目录及个人设置不会被脚本读取。
+
+`extensions/localization` 包含中文补译词典、显示层补译逻辑和接入脚本。显示层保留绑定及内部编码器标识；原生文件/消息对话框仅针对审核过的固定提示文字插入翻译调用，文件筛选模式与参数保持原样。语言设置为英文时保留原文。`Checks.cs` 提供绑定、编辑值、技术名称和语言切换验证，`JitChecks.cs` 检查补丁后的方法可编译。
 
 构建脚本编译桌宠、截图编辑器、桥接、单实例、保存对话框、录制状态、录制按钮和发布引导，然后对快照主程序进行受检查的接入补丁。FFmpeg 的路径修复只修改查找逻辑，保留已存在的编码参数修复。
 

@@ -4,7 +4,7 @@
 
 ## 下载安装
 
-[点击下载安装包](https://github.com/wxchill/Captura-WXC/releases/download/v8.0.0-wxc.20261107/Captura-WXC-2026.11.07-Setup-x64.exe)，下载后双击安装。也可进入[版本下载页（Releases）](https://github.com/wxchill/Captura-WXC/releases/tag/v8.0.0-wxc.20261107)查看说明和校验文件。安装包包含 FFmpeg、ffprobe、独立 Python、本地中英文 OCR 和英译中模型，截图处理不需要自行搭建 Python 环境。缺少 Visual C++ 运行库时会调用安装包内的微软安装程序，需要管理员授权。
+[点击下载安装包](https://github.com/wxchill/Captura-WXC/releases/download/v8.0.0-wxc.20261107.1/Captura-WXC-2026.11.07.1-Setup-x64.exe)，下载后双击安装。也可进入[版本下载页（Releases）](https://github.com/wxchill/Captura-WXC/releases/tag/v8.0.0-wxc.20261107.1)查看说明和校验文件。安装包包含 FFmpeg、ffprobe、独立 Python、本地中英文 OCR 和英译中模型，截图处理不需要自行搭建 Python 环境。缺少 Visual C++ 运行库时会调用安装包内的微软安装程序，需要管理员授权。
 
 首次使用在主页面选择屏幕、麦克风和系统音频。默认全屏、10 FPS、不缩放、音频关闭，录像保存到当前用户“文档\Captura-WXC”。打开先显示主页面，点 × 收入托盘；完全退出请使用系统托盘右键菜单。快捷键全部禁用，仅鼠标控制。
 
@@ -17,6 +17,7 @@
 - 桌宠可贴到工作区四边；侧边按钮转向屏幕内，四角以朝内的 90° 扇区容纳四个按钮。转向有约 220ms 滚动过渡，拖回中间后自动恢复上方排列，文字保持正向。
 - 截图每次手动框选，可涂鸦、提取文字、本地或联网翻译，以及将译文覆盖到原文位置。
 - 单实例启动。桌宠与主页面共享录制配置。
+- 补全录制来源、编码器说明、悬停提示、设置和常见错误提示的中文。GIF、FFmpeg、SharpAvi、x264 等名称保留，编码器标识和用户输入不变。
 
 本地翻译模型支持英文到简体中文。联网翻译使用 MyMemory，会发送待翻译的文字，可能受服务额度限制。复杂背景、公式和小字号的识别或覆盖翻译需要人工核对。
 

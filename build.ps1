@@ -40,6 +40,7 @@ if($LASTEXITCODE -ne 0){throw 'Screenshot bridge compilation failed'}
 & $csc /nologo /target:library /optimize+ "/out:$payload\lib\Captura.SingleInstance.dll" @refs "$root\extensions\single-instance\SingleInstance.cs"
 if($LASTEXITCODE -ne 0){throw 'Single instance compilation failed'}
 & "$package\compile_release.ps1" -SkipInstaller -CecilPath "$root\vendor\Mono.Cecil.dll"
+& "$root\extensions\localization\build_and_patch.ps1" -RuntimeDirectory $payload -CecilPath "$root\vendor\Mono.Cecil.dll"
 if($Setup){
  if(!(Test-Path -LiteralPath "$payload\ffmpeg.exe") -or !(Test-Path -LiteralPath "$payload\lib\ScreenshotTools\backend\python\python.exe")){throw 'Full FFmpeg and screenshot backend are required'}
  Copy-Item -LiteralPath $VCRedist -Destination "$package\VC_redist.x64.exe" -Force
