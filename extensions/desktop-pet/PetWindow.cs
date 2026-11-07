@@ -7,6 +7,23 @@ using System.Windows.Threading;
 using Forms=System.Windows.Forms;
 
 namespace CapturaDesktopPet {
+ public sealed class PaletteReveal {
+  double from,to,started,duration;
+  public double Value {get;private set;}
+  public bool IsAnimating {get;private set;}
+  public void Snap(bool open){Value=from=to=open?1:0;IsAnimating=false;}
+  public void SetTarget(bool open,double now){
+   Advance(now);from=Value;to=open?1:0;started=now;
+   duration=(open?260:190)*Math.Abs(to-from);IsAnimating=duration>.01;
+   if(!IsAnimating)Value=to;
+  }
+  public void Advance(double now){
+   if(!IsAnimating)return;double t=Math.Max(0,Math.Min(1,(now-started)/duration));
+   double eased=to>from?1-Math.Pow(1-t,3):t*t;
+   Value=from+(to-from)*eased;
+   if(t>=1){Value=to;IsAnimating=false;}
+  }
+ }
  // Pure geometry: dragging clamps only the avatar, while the palette turns
  // inward and adjusts at corners without resizing the transparent window.
  public sealed class PetLayout {
@@ -55,6 +72,9 @@ namespace CapturaDesktopPet {
   readonly PetAdapter adapter;readonly Action openMain;
   readonly Canvas canvas=new Canvas();readonly MascotView mascot=new MascotView();
   readonly PixelActionButton screenshot,start,pause,stop;readonly OrbitArc orbit=new OrbitArc();readonly TextBlock status=new TextBlock();
+  readonly PixelActionButton[] actions;readonly ScaleTransform[] buttonScales=new ScaleTransform[4];readonly TranslateTransform[] buttonMoves=new TranslateTransform[4];
+  readonly ScaleTransform orbitReveal=new ScaleTransform(1,1,OrbitArc.Origin,OrbitArc.Origin);readonly PaletteReveal reveal=new PaletteReveal();
+  readonly System.Diagnostics.Stopwatch animationClock=System.Diagnostics.Stopwatch.StartNew();bool layoutMoving;
   bool stopRequested,awaitNewClock;TimeSpan oldClock;
   readonly DispatcherTimer timer,motionTimer;readonly bool animationsEnabled;PetLayout shownLayout,targetLayout,fromLayout;readonly System.Diagnostics.Stopwatch motionWatch=new System.Diagnostics.Stopwatch();
   Point anchor;Point dragCursor,dragAnchor;bool dragging,moved,expanded,allowClose;int ticks;
@@ -68,16 +88,22 @@ namespace CapturaDesktopPet {
    Width=OrbitArc.SurfaceSize;Height=OrbitArc.SurfaceSize;canvas.Width=Width;canvas.Height=Height;PixelFont.WarmUp();
    Content=canvas;orbit.Width=Width;orbit.Height=Height;orbit.IsHitTestVisible=false;canvas.Children.Add(orbit);canvas.Children.Add(mascot);mascot.Width=112;mascot.Height=112;mascot.Cursor=Cursors.Hand;mascot.ToolTip="单击展开 · 按住拖动 · 右键返回主页面";
    screenshot=MakeButton("截图","shot",Capture);start=MakeButton("录屏开始","start",delegate{BeginRecording();});pause=MakeButton("录屏暂停","pause",delegate{Invoke(adapter.PauseResume);});stop=MakeButton("录屏结束","stop",delegate{EndRecording();});
+   actions=new[]{screenshot,start,pause,stop};
+   for(int i=0;i<actions.Length;i++){
+    buttonScales[i]=new ScaleTransform(1,1,52,21);buttonMoves[i]=new TranslateTransform();
+    var transforms=new TransformGroup();transforms.Children.Add(buttonScales[i]);transforms.Children.Add(buttonMoves[i]);actions[i].RenderTransform=transforms;
+   }
+   orbit.RenderTransform=orbitReveal;Panel.SetZIndex(orbit,-1);Panel.SetZIndex(mascot,10);
    Canvas.SetLeft(mascot,OrbitArc.Origin-56);Canvas.SetTop(mascot,OrbitArc.Origin-56);
-   foreach(var button in new[]{screenshot,start,pause,stop})button.Visibility=Visibility.Hidden;orbit.Visibility=Visibility.Hidden;
+   foreach(var button in actions)button.Visibility=Visibility.Hidden;orbit.Visibility=Visibility.Hidden;
    mascot.MouseLeftButtonDown+=delegate(object sender,MouseButtonEventArgs e){dragging=true;moved=false;dragCursor=CursorDip();dragAnchor=anchor;mascot.CaptureMouse();e.Handled=true;};
    mascot.MouseMove+=delegate{if(!dragging)return;Vector delta=CursorDip()-dragCursor;if(delta.Length>4)moved=true;if(moved){anchor=dragAnchor+delta;Place();}};
    mascot.MouseLeftButtonUp+=delegate(object sender,MouseButtonEventArgs e){if(!dragging)return;dragging=false;mascot.ReleaseMouseCapture();if(!moved)SetExpanded(!expanded);else SavePosition();e.Handled=true;};
    mascot.LostMouseCapture+=delegate{dragging=false;};
    var menu=new ContextMenu();var mainItem=new MenuItem{Header="返回主页面"};mainItem.Click+=delegate{Hide();openMain();};menu.Items.Add(mainItem);var collapse=new MenuItem{Header="收起按钮"};collapse.Click+=delegate{SetExpanded(false);};menu.Items.Add(collapse);var hide=new MenuItem{Header="隐藏桌宠（保留系统托盘）"};hide.Click+=delegate{Hide();};menu.Items.Add(hide);mascot.ContextMenu=menu;
    timer=new DispatcherTimer(DispatcherPriority.Background){Interval=TimeSpan.FromMilliseconds(40)};timer.Tick+=delegate{Animate();};
-   motionTimer=new DispatcherTimer(DispatcherPriority.Render){Interval=TimeSpan.FromMilliseconds(16)};motionTimer.Tick+=delegate{AdvanceLayout();};
-   IsVisibleChanged+=delegate{if(IsVisible){Place();if(animate)timer.Start();}else{timer.Stop();motionTimer.Stop();if(targetLayout!=null)DrawLayout(targetLayout);}};
+   motionTimer=new DispatcherTimer(DispatcherPriority.Render){Interval=TimeSpan.FromMilliseconds(16)};motionTimer.Tick+=delegate{AdvanceAnimations();};
+   IsVisibleChanged+=delegate{if(IsVisible){Place();if(animate)timer.Start();}else{timer.Stop();motionTimer.Stop();layoutMoving=false;reveal.Snap(expanded);if(targetLayout!=null)DrawLayout(targetLayout);}};
    Closing+=delegate(object s,System.ComponentModel.CancelEventArgs e){if(!allowClose){e.Cancel=true;Hide();}};
    Closed+=delegate{timer.Stop();motionTimer.Stop();};PreviewKeyDown+=delegate(object s,KeyEventArgs e){e.Handled=true;};PreviewKeyUp+=delegate(object s,KeyEventArgs e){e.Handled=true;};
    anchor=new Point(SystemParameters.WorkArea.Right-190,SystemParameters.WorkArea.Bottom-95);LoadPosition();Place();Refresh();
@@ -109,9 +135,11 @@ namespace CapturaDesktopPet {
    if(wasRecording!=mascot.Recording || wasPaused!=mascot.Paused || oldTime!=mascot.DisplayedTime)mascot.InvalidateVisual();
   }
   public void SetExpanded(bool value){if(expanded==value)return;expanded=value;
-   // Keep the layered window, avatar and anchor unchanged. Hidden controls keep
-   // their measured layout, so toggling does not resize/move/recreate the HWND.
-   foreach(var item in new UIElement[]{screenshot,start,pause,stop,orbit})item.Visibility=expanded?Visibility.Visible:Visibility.Hidden;
+   // Reuse the same HWND and measured layout. Only cached transforms change.
+   // Reversing a click samples the current progress rather than restarting.
+   if(animationsEnabled && IsVisible){reveal.SetTarget(value,animationClock.Elapsed.TotalMilliseconds);if(reveal.IsAnimating)motionTimer.Start();}
+   else reveal.Snap(value);
+   DrawPalette();
   }
   static void At(UIElement element,double x,double y){Canvas.SetLeft(element,x);Canvas.SetTop(element,y);}
   public void ApplyPlacement(Point desired,Rect work){
@@ -119,18 +147,36 @@ namespace CapturaDesktopPet {
    Left=anchor.X-OrbitArc.Origin;Top=anchor.Y-OrbitArc.Origin;
    bool changed=targetLayout==null || targetLayout.Rotation!=layout.Rotation || targetLayout.Corner!=layout.Corner || targetLayout.Offset!=layout.Offset;
    targetLayout=layout;
-   if(animationsEnabled && IsVisible && shownLayout!=null && changed){fromLayout=shownLayout;motionWatch.Restart();motionTimer.Start();}
-   else if(!motionTimer.IsEnabled || !animationsEnabled || !IsVisible)DrawLayout(layout);
+   if(animationsEnabled && IsVisible && shownLayout!=null && changed && (reveal.Value>0 || reveal.IsAnimating)){fromLayout=shownLayout;motionWatch.Restart();layoutMoving=true;motionTimer.Start();}
+   else if(!layoutMoving || !animationsEnabled || !IsVisible){layoutMoving=false;DrawLayout(layout);}
   }
-  void AdvanceLayout(){
-   double t=motionWatch.Elapsed.TotalMilliseconds/220;
-   if(t>=1){motionTimer.Stop();DrawLayout(targetLayout);return;}
-   DrawLayout(PetLayout.Interpolate(fromLayout,targetLayout,1-Math.Pow(1-t,3)));
+  void AdvanceAnimations(){
+   if(layoutMoving){
+    double t=motionWatch.Elapsed.TotalMilliseconds/220;
+    if(t>=1){layoutMoving=false;shownLayout=targetLayout;}
+    else shownLayout=PetLayout.Interpolate(fromLayout,targetLayout,1-Math.Pow(1-t,3));
+   }
+   reveal.Advance(animationClock.Elapsed.TotalMilliseconds);DrawPalette();
+   if(!layoutMoving && !reveal.IsAnimating)motionTimer.Stop();
   }
   void DrawLayout(PetLayout layout){
    shownLayout=layout;
-   int i=0;foreach(var button in new[]{screenshot,start,pause,stop}){Point p=layout.ButtonCenter(i++);double x=Math.Round(p.X-52),y=Math.Round(p.Y-21);if(Canvas.GetLeft(button)!=x)Canvas.SetLeft(button,x);if(Canvas.GetTop(button)!=y)Canvas.SetTop(button,y);}
-   orbit.SetLayout(layout.Rotation,layout.Corner,layout.Scale,layout.Offset);
+   DrawPalette();
+  }
+  void DrawPalette(){
+   if(shownLayout==null)return;
+   double amount=reveal.Value,scale=.15+.85*amount;
+   Visibility visibility=amount>0 || reveal.IsAnimating?Visibility.Visible:Visibility.Hidden;
+   for(int i=0;i<actions.Length;i++){
+    var button=actions[i];Point p=shownLayout.ButtonCenter(i);double x=Math.Round(p.X-52),y=Math.Round(p.Y-21);
+    if(Canvas.GetLeft(button)!=x)Canvas.SetLeft(button,x);if(Canvas.GetTop(button)!=y)Canvas.SetTop(button,y);
+    buttonScales[i].ScaleX=buttonScales[i].ScaleY=scale;
+    buttonMoves[i].X=(OrbitArc.Origin-x-52)*(1-amount);buttonMoves[i].Y=(OrbitArc.Origin-y-21)*(1-amount);
+    button.Opacity=amount;button.Visibility=visibility;
+    button.IsHitTestVisible=expanded && !reveal.IsAnimating && amount>=1;
+   }
+   orbit.SetLayout(shownLayout.Rotation,shownLayout.Corner,shownLayout.Scale,shownLayout.Offset);
+   orbitReveal.ScaleX=orbitReveal.ScaleY=amount;orbit.Opacity=amount;orbit.Visibility=visibility;
   }
   void Place(){
    Rect work=SystemParameters.WorkArea;var source=PresentationSource.FromVisual(this);

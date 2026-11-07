@@ -62,6 +62,10 @@ class Checks {
  }
  [STAThread]static int Main(){try{
   CheckPlacement();
+  var revealState=new PaletteReveal();revealState.SetTarget(true,0);Need(revealState.IsAnimating && revealState.Value==0,"Opening appeared instantly");revealState.Advance(90);double openMid=revealState.Value;Need(openMid>0 && openMid<1,"Missing outward transition");
+  revealState.SetTarget(false,90);Need(revealState.Value==openMid,"Reversing a click jumped to an endpoint");revealState.Advance(115);double closeMid=revealState.Value;Need(closeMid>0 && closeMid<openMid,"Missing inward transition");
+  revealState.SetTarget(true,115);Need(revealState.Value==closeMid,"Reopening during retraction jumped");revealState.Advance(1000);Need(revealState.Value==1 && !revealState.IsAnimating,"Opening did not settle");
+  for(int i=0;i<100;i++){revealState.SetTarget(i%2==0,1010+i*7);Need(revealState.Value>=0 && revealState.Value<=1,"Rapid toggling produced invalid progress");}revealState.Advance(3000);Need(revealState.Value==0 && !revealState.IsAnimating,"Rapid toggles did not finish retracted");
   var main=new FakeMain{RecordingViewModel=new FakeRecorder{RecorderState="NotRecording"},ScreenShotViewModel=new FakeScreen(),VideoViewModel=new FakeVideo()};
   int starts=0,stops=0,pauses=0,shots=0,fps=0;string selected="";
   main.RecordingViewModel.RecordCommand=new Command(delegate{if(main.RecordingViewModel.RecorderState=="NotRecording"){starts++;fps=main.VideoViewModel.FrameRate;selected=main.VideoViewModel.Source;main.RecordingViewModel.RecorderState="Recording";}else{stops++;main.RecordingViewModel.RecorderState="NotRecording";}});
@@ -79,7 +83,18 @@ class Checks {
   double width=pet.Width,height=pet.Height,left=pet.Left,top=pet.Top,mx=Canvas.GetLeft(pet.Mascot),my=Canvas.GetTop(pet.Mascot);
   var watch=System.Diagnostics.Stopwatch.StartNew();for(int i=0;i<100;i++)pet.SetExpanded(i%2==0);watch.Stop();
   Need(pet.Width==width && pet.Height==height && pet.Left==left && pet.Top==top && Canvas.GetLeft(pet.Mascot)==mx && Canvas.GetTop(pet.Mascot)==my,"Toggling moved or resized the layered window/mascot");Need(pet.Mascot.Width==112 && pet.Mascot.Height==112,"Mascot was not reduced to 112 pixels");pet.SetExpanded(true);
-  Console.WriteLine("100 visibility-only toggles: "+watch.Elapsed.TotalMilliseconds.ToString("0.0")+" ms; window bounds and avatar position unchanged.");
+  Console.WriteLine("100 expand/collapse toggles: "+watch.Elapsed.TotalMilliseconds.ToString("0.0")+" ms; window bounds and avatar position unchanged.");
+  // Exercise a partially visible frame without showing any desktop window.
+  var liveReveal=(PaletteReveal)typeof(PetWindow).GetField("reveal",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(pet);
+  var redraw=typeof(PetWindow).GetMethod("DrawPalette",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+  liveReveal.Snap(false);liveReveal.SetTarget(true,0);liveReveal.Advance(65);redraw.Invoke(pet,null);
+  foreach(var button in palette.Children.OfType<PixelActionButton>()){
+   Point center=button.RenderTransform.Transform(new Point(52,21));center.Offset(Canvas.GetLeft(button),Canvas.GetTop(button));
+   Point expected=new Point(OrbitArc.Origin+(Canvas.GetLeft(button)+52-OrbitArc.Origin)*liveReveal.Value,OrbitArc.Origin+(Canvas.GetTop(button)+21-OrbitArc.Origin)*liveReveal.Value);
+   Need((center-expected).Length<.01 && button.Opacity>0 && button.Opacity<1 && !button.IsHitTestVisible,"Button did not emerge from center or became clickable while moving");
+  }
+  Need(Panel.GetZIndex(pet.Mascot)>Panel.GetZIndex(palette.Children.OfType<PixelActionButton>().First()),"Emerging buttons cover mascot instead of appearing from behind it");
+  liveReveal.Snap(true);redraw.Invoke(pet,null);Need(palette.Children.OfType<PixelActionButton>().All(b=>b.IsHitTestVisible && b.Opacity==1),"Settled buttons are not usable");
   Point first=OrbitArc.CenterAt(-155),second=OrbitArc.CenterAt(-115),third=OrbitArc.CenterAt(-65),last=OrbitArc.CenterAt(-25);Need(first.X<second.X && second.X<third.X && third.X<last.X && second.Y<first.Y && third.Y<last.Y,"Actions are not on an upper curved arc");
   Need(pet.EndRecording(),"Pet stop request failed");Need(pet.Mascot.DisplayedTime=="00:00:00" && !pet.Mascot.Recording && !pet.Mascot.Paused,"Stopping did not zero the face and restore idle expression");Need(main.RecordingViewModel.TimeSpan.TotalSeconds==754,"Face reset changed the recording metadata duration");
   main.RecordingViewModel.RunningStopRecordingCount=1;pet.Refresh();Need(pet.Mascot.DisplayedTime=="00:00:00","Saving redisplayed the stale elapsed time");main.RecordingViewModel.RunningStopRecordingCount=0;
@@ -88,6 +103,7 @@ class Checks {
   main.RecordingViewModel.RecorderState="Recording";main.RecordingViewModel.TimeSpan=TimeSpan.FromMinutes(12)+TimeSpan.FromSeconds(34);pet.Refresh();
   var root=pet.PreviewRoot;pet.Content=null;var background=new Border{Background=new SolidColorBrush(Color.FromRgb(235,242,247)),Child=root,Padding=new Thickness(12)};
   var scene=Render(background,null,sceneSize,sceneSize);SavePalette(scene,pet,"pet-expanded-preview.png");
+  liveReveal.Snap(false);liveReveal.SetTarget(true,0);liveReveal.Advance(30);redraw.Invoke(pet,null);SavePalette(Render(background,null,sceneSize,sceneSize),pet,"pet-pop-out-preview.png");liveReveal.Advance(260);liveReveal.SetTarget(false,300);liveReveal.Advance(435);redraw.Invoke(pet,null);SavePalette(Render(background,null,sceneSize,sceneSize),pet,"pet-retract-preview.png");liveReveal.Snap(true);redraw.Invoke(pet,null);
   var face=new CroppedBitmap(scene,new Int32Rect((int)OrbitArc.Origin-44,(int)OrbitArc.Origin-44,112,112));var pixels=new byte[112*112*4];face.CopyPixels(pixels,112*4,0);int letters=0,numbers=0;for(int y=40;y<61;y++)for(int x=25;x<80;x++){int at=(y*112+x)*4;if(pixels[at]>210 && pixels[at+1]>210 && pixels[at+2]>210){if(y<47)letters++;else numbers++;}}
   Need(letters==0 && numbers>20,"Face still contains a status-text row or is missing the numeric clock");
   pet.SetExpanded(false);var transparent=new RenderTargetBitmap(surface,surface,96,96,PixelFormats.Pbgra32);transparent.Render(root);var alpha=new byte[surface*surface*4];transparent.CopyPixels(alpha,surface*4,0);Need(alpha[3]==0 && alpha[alpha.Length-1]==0,"Hidden palette leaves opaque desktop-blocking pixels");
@@ -95,6 +111,6 @@ class Checks {
   pet.SetExpanded(true);string[] names={"left","right","top","bottom","top-left","top-right","bottom-left","bottom-right"};Point[] positions={new Point(0,520),new Point(1920,520),new Point(960,0),new Point(960,1040),new Point(0,0),new Point(1920,0),new Point(0,1040),new Point(1920,1040)};
   for(int i=0;i<positions.Length;i++){pet.ApplyPlacement(positions[i],new Rect(0,0,1920,1040));SavePalette(Render(background,null,sceneSize,sceneSize),pet,"pet-"+names[i]+"-preview.png");}
   pet.DisposePet();
-  Console.WriteLine("PASS: numeric-only face, smaller mascot, no resize/move on toggle, transparent hidden palette, four pixel actions, clock reset and restart, metadata preservation, live configuration, screenshot and eye tracking. No desktop input or recording.");return 0;
+  Console.WriteLine("PASS: center pop-out/retraction, continuous reversal, safe hit testing, numeric face, stable window, edge/corner rotation, clock reset, metadata, live settings and screenshot. No desktop input or recording.");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }
